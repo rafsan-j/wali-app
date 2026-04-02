@@ -50,3 +50,20 @@ export function useEvaluations() {
 export function useStats() {
   return getStats()
 }
+
+export function useTimers() {
+  const [timers, setTimersState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wali_timers') || '{}') } 
+    catch { return {} }
+  })
+
+  const setAppTimer = useCallback((id, expiresAt) => {
+    setTimersState(prev => {
+      const next = { ...prev, [id]: expiresAt }
+      localStorage.setItem('wali_timers', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  return { timers, setAppTimer }
+}
