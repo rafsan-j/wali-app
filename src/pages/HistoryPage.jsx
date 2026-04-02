@@ -1,8 +1,17 @@
-import { useEvaluations } from '../hooks/useStorage'
+import { useEvaluations, useSettings } from '../hooks/useStorage'
 import { VerdictBadge, CategoryPill, EmptyState } from '../components/UI'
 import { clsx } from 'clsx'
+import { formatMoney } from '../lib/utils'
+import { motion } from 'framer-motion'
 
-function HistoryItem({ entry, onDelete }) {
+const pageTransition = {
+  initial: { opacity: 0, y: 15 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -15 },
+  transition: { duration: 0.3, ease: 'easeOut' }
+}
+
+function HistoryItem({ entry, onDelete, onMarkBought, currency }) {
   const date = new Date(entry.createdAt).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
@@ -15,26 +24,44 @@ function HistoryItem({ entry, onDelete }) {
           <p className="text-zinc-500 text-xs mt-0.5">{date}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <p className="text-zinc-300 text-sm font-medium">৳{(entry.price || 0).toLocaleString()}</p>
+          <p className="text-zinc-300 text-sm font-medium">{formatMoney(entry.price, currency)}</p>
           <VerdictBadge verdict={entry.verdict} />
         </div>
       </div>
 
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800">
         <CategoryPill category={entry.category_class || 'Hajiyyat'} />
-        <button
-          onClick={() => onDelete(entry.id)}
-          className="text-zinc-600 text-xs hover:text-red-400 transition-colors"
-        >
-          Remove
-        </button>
+        <div className="flex gap-3 items-center">
+          {/* NEW: Mark as bought toggle in history */}
+          {!entry.purchased ? (
+            <button
+              onClick={() => onMarkBought(entry)}
+              className="text-wali-green text-xs font-medium hover:text-wali-green/80 transition-colors"
+            >
+              Mark Bought
+            </button>
+          ) : (
+             <span className="text-zinc-500 text-[10px] uppercase tracking-wider flex items-center gap-1">
+               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+               Bought
+             </span>
+          )}
+          <button
+            onClick={() => onDelete(entry.id)}
+            className="text-zinc-600 text-xs hover:text-red-400 transition-colors"
+          >
+            Remove
+          </button>
+        </div>
       </div>
 
       {entry.investment_vehicle && (
         <div className="mt-3 bg-zinc-800/50 rounded-lg px-3 py-2 flex justify-between items-center">
           <span className="text-zinc-500 text-xs">{entry.investment_vehicle} in 5yr</span>
           <span className="text-wali-green text-xs font-medium">
-            ৳{(entry.projected_5yr || 0).toLocaleString()}
+            {formatMoney(entry.projected_5yr, currency)}
           </span>
         </div>
       )}
@@ -43,7 +70,8 @@ function HistoryItem({ entry, onDelete }) {
 }
 
 export default function HistoryPage() {
-  const { evaluations, removeEvaluation } = useEvaluations()
+  const { evaluations, removeEvaluation, updateEvaluation } = useEvaluations()
+  const { settings, updateSettings } = useSettings()
 
   const counts = {
     approve:    evaluations.filter(e => e.verdict === 'approve').length,
@@ -51,8 +79,13 @@ export default function HistoryPage() {
     discourage: evaluations.filter(e => e.verdict === 'discourage').length,
   }
 
+  const handleMarkBought = (entry) => {
+    updateEvaluation(entry.id, { purchased: true })
+    updateSettings({ spentSoFar: settings.spentSoFar + entry.price })
+  }
+
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-28 scroll-area">
+    <motion.div {...pageTransition} className="max-w-xl mx-auto px-4 md:px-6 pt-6 pb-28 scroll-area">
       <div className="mb-6">
         <h1 className="font-display text-3xl text-zinc-100">History</h1>
         <p className="text-zinc-400 text-sm mt-1">Your past evaluations</p>
@@ -86,10 +119,12 @@ export default function HistoryPage() {
               key={entry.id}
               entry={entry}
               onDelete={removeEvaluation}
+              onMarkBought={handleMarkBought}
+              currency={settings.currency}
             />
           ))}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

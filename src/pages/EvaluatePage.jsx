@@ -1,8 +1,17 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion' // 1. ADD THIS IMPORT
 import { evaluateWithWali } from '../lib/gemini'
 import { useSettings, useEvaluations } from '../hooks/useStorage'
 import { BudgetBar, LoadingDots } from '../components/UI'
 import ResultCard from '../components/ResultCard'
+import { formatMoney } from '../lib/utils'
+
+const pageTransition = {
+  initial: { opacity: 0, y: 15 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -15 },
+  transition: { duration: 0.3, ease: 'easeOut' }
+}
 
 const CATEGORIES = [
   { value: 'fashion',       label: 'Fashion / Accessories' },
@@ -18,7 +27,8 @@ const CATEGORIES = [
 
 export default function EvaluatePage() {
   const { settings } = useSettings()
-  const { addEvaluation } = useEvaluations()
+  // NEW: Destructure evaluations array to scan history
+  const { evaluations, addEvaluation } = useEvaluations()
 
   const [form, setForm] = useState({
     name:         '',
@@ -45,10 +55,29 @@ export default function EvaluatePage() {
     if (!form.name || !form.price) return
     if (blocked) return
 
+    if (price <= 0) {
+      setError('Price must be greater than 0.');
+      return;
+    }
+    if (!form.reason || form.reason.trim().length < 10) {
+      setError('Be honest. Please provide a real reason (at least 10 characters) for Wali to analyze.');
+      return;
+    }
+
     if (!settings.geminiApiKey) {
       setError('Add your Gemini API key in Settings first.')
       return
     }
+
+    // NEW: The 48-Hour Impulse Check
+    // Scan history for the same item name that was previously discouraged within 48 hours
+    const duplicateImpulse = evaluations.find(prevEval => 
+      prevEval.name.toLowerCase().trim() === form.name.toLowerCase().trim() &&
+      prevEval.verdict === 'discourage' &&
+      (Date.now() - new Date(prevEval.createdAt).getTime()) < (48 * 60 * 60 * 1000)
+    )
+    
+    const isReEvaluation = !!duplicateImpulse;
 
     setLoading(true)
     setResult(null)
@@ -57,7 +86,9 @@ export default function EvaluatePage() {
     try {
       const res = await evaluateWithWali({
         apiKey: settings.geminiApiKey,
-        item:   { ...form, price, currency: settings.currency },
+        model:  settings.aiModel || 'gemini-2.5-flash-lite', // NEW: Pass the model
+        // Pass the new flag to Gemini
+        item:   { ...form, price, currency: settings.currency, isReEvaluation },
       })
 
       const entry = addEvaluation({
@@ -99,7 +130,7 @@ export default function EvaluatePage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-6 pb-28 scroll-area">
+    <motion.div {...pageTransition} className="max-w-xl mx-auto px-4 md:px-6 pt-6 pb-28 scroll-area">
       {/* Header */}
       <div className="mb-6">
         <h1 className="font-display text-3xl text-zinc-100">Wali</h1>
@@ -109,7 +140,7 @@ export default function EvaluatePage() {
       {/* Budget snapshot */}
       <div className="card p-4 mb-4">
         <p className="section-label">Monthly budget</p>
-        <BudgetBar spent={settings.spentSoFar} limit={settings.monthlyLimit} />
+        <BudgetBar spent={settings.spentSoFar} limit={settings.monthlyLimit} currency={settings.currency} />
       </div>
 
       {/* Form */}
@@ -117,7 +148,6 @@ export default function EvaluatePage() {
         <div className="card p-5 space-y-4">
           <p className="section-label">Evaluate a purchase</p>
 
-          {/* Name & price row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-zinc-400 mb-1.5">Item name</label>
@@ -143,7 +173,6 @@ export default function EvaluatePage() {
             </div>
           </div>
 
-          {/* Category */}
           <div>
             <label className="block text-xs text-zinc-400 mb-1.5">Category</label>
             <select className="input-base" value={form.category} onChange={set('category')}>
@@ -153,7 +182,6 @@ export default function EvaluatePage() {
             </select>
           </div>
 
-          {/* Necessity slider */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-xs text-zinc-400">How necessary?</label>
@@ -171,7 +199,6 @@ export default function EvaluatePage() {
             </div>
           </div>
 
-          {/* Reason */}
           <div>
             <label className="block text-xs text-zinc-400 mb-1.5">
               Why do you believe you need this right now?
@@ -184,7 +211,6 @@ export default function EvaluatePage() {
             />
           </div>
 
-          {/* Duplicate checkbox */}
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
@@ -196,21 +222,18 @@ export default function EvaluatePage() {
           </label>
         </div>
 
-        {/* Budget block warning */}
         {blocked && (
           <div className="rounded-xl px-4 py-3 bg-wali-warn/10 border border-wali-warn/20 text-wali-warn text-sm">
-            This exceeds your remaining budget of {settings.currency}{Math.max(0, remaining).toLocaleString()}. Purchase blocked.
+            This exceeds your remaining budget of {formatMoney(Math.max(0, remaining), settings.currency)}. Purchase blocked.
           </div>
         )}
 
-        {/* Error */}
         {error && (
           <div className="rounded-xl px-4 py-3 bg-red-950/40 border border-red-800/30 text-red-400 text-sm">
             {error}
           </div>
         )}
 
-        {/* Submit */}
         {!result ? (
           <button type="submit" className="btn-primary" disabled={loading || blocked}>
             {loading ? <><LoadingDots /><span className="ml-2 text-white/60">Wali is deliberating…</span></> : 'Ask Wali →'}
@@ -222,7 +245,6 @@ export default function EvaluatePage() {
         )}
       </form>
 
-      {/* Result */}
       {result && (
         <div className="mt-4">
           <ResultCard
@@ -233,6 +255,6 @@ export default function EvaluatePage() {
           />
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

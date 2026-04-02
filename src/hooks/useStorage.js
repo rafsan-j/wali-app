@@ -33,7 +33,18 @@ export function useEvaluations() {
     setEvaluations(getEvaluations())
   }, [])
 
-  return { evaluations, addEvaluation, removeEvaluation }
+  // NEW: Update an existing evaluation (e.g. marking it as bought)
+  const updateEvaluation = useCallback((id, updates) => {
+    const all = getEvaluations()
+    const index = all.findIndex(e => e.id === id)
+    if (index !== -1) {
+      all[index] = { ...all[index], ...updates }
+      localStorage.setItem('wali_evaluations', JSON.stringify(all))
+      setEvaluations(all)
+    }
+  }, [])
+
+  return { evaluations, addEvaluation, removeEvaluation, updateEvaluation }
 }
 
 export function useStats() {

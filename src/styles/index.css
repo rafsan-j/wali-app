@@ -24,60 +24,46 @@
 }
 
 @layer components {
-  /* Card base */
+  /* Card base - tighter corners, glass effect, subtle border */
   .card {
-    @apply bg-zinc-900 border border-zinc-800 rounded-2xl;
+    @apply bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/60 rounded-xl shadow-sm;
   }
 
-  /* Input base */
+  /* Input base - tighter corners, darker inset */
   .input-base {
-    @apply w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3
-           text-zinc-100 placeholder-zinc-500 text-sm font-body
+    @apply w-full bg-zinc-950/50 border border-zinc-800 rounded-lg px-4 py-3
+           text-zinc-100 placeholder-zinc-600 text-sm font-body
            focus:outline-none focus:ring-1 focus:ring-wali-green focus:border-wali-green
-           transition-colors duration-150;
+           transition-all duration-200 shadow-inner;
   }
 
-  /* Primary button */
+  /* Primary button - tighter corners, scale down effect */
   .btn-primary {
-    @apply w-full bg-wali-green text-white font-body font-medium text-sm
-           py-4 rounded-xl active:scale-95 transition-all duration-150
+    @apply w-full bg-wali-green/90 hover:bg-wali-green text-white font-body font-medium text-sm
+           py-3.5 rounded-lg active:scale-[0.98] transition-all duration-150
            disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
-           flex items-center justify-center gap-2;
+           flex items-center justify-center gap-2 shadow-sm;
   }
 
-  /* Nav tab */
-  .nav-tab {
-    @apply flex flex-col items-center justify-center gap-1 flex-1 py-2
-           text-zinc-500 transition-colors duration-150;
-  }
-  .nav-tab.active {
-    @apply text-wali-green;
-  }
-
-  /* Section label */
+  /* Section label - smaller, sharper, professional */
   .section-label {
-    @apply text-xs font-medium text-zinc-500 uppercase tracking-widest mb-3;
+    @apply text-[11px] font-semibold text-zinc-500 uppercase tracking-widest mb-3;
   }
 
-  /* Verdict badges */
-  .badge-approve    { @apply bg-wali-green/10 text-wali-green border border-wali-green/20; }
-  .badge-caution    { @apply bg-wali-gold/10 text-wali-gold border border-wali-gold/20; }
-  .badge-discourage { @apply bg-wali-warn/10 text-wali-warn border border-wali-warn/20; }
+  /* Verdict badges - added subtle glow shadow */
+  .badge-approve    { @apply bg-wali-green/10 text-wali-green border border-wali-green/20 shadow-[0_0_10px_rgba(29,158,117,0.1)]; }
+  .badge-caution    { @apply bg-wali-gold/10 text-wali-gold border border-wali-gold/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]; }
+  .badge-discourage { @apply bg-wali-warn/10 text-wali-warn border border-wali-warn/20 shadow-[0_0_10px_rgba(216,90,48,0.1)]; }
 
   /* Category pills */
-  .pill-dharuriyyat { @apply bg-wali-green/10 text-wali-green text-xs px-3 py-1 rounded-full; }
-  .pill-hajiyyat    { @apply bg-wali-gold/10 text-wali-gold text-xs px-3 py-1 rounded-full; }
-  .pill-tahsiniyyat { @apply bg-wali-warn/10 text-wali-warn text-xs px-3 py-1 rounded-full; }
+  .pill-dharuriyyat { @apply bg-wali-green/10 text-wali-green border border-wali-green/20; }
+  .pill-hajiyyat    { @apply bg-wali-gold/10 text-wali-gold border border-wali-gold/20; }
+  .pill-tahsiniyyat { @apply bg-wali-warn/10 text-wali-warn border border-wali-warn/20; }
 
   /* Loading dots */
-  .dot { @apply w-1.5 h-1.5 rounded-full bg-wali-green animate-pulse-dot; }
+  .dot { @apply w-1.5 h-1.5 rounded-full bg-wali-green animate-pulse-dot opacity-80; }
   .dot:nth-child(2) { animation-delay: 0.2s; }
   .dot:nth-child(3) { animation-delay: 0.4s; }
-}
-
-/* Bottom nav safe area */
-.bottom-nav {
-  padding-bottom: calc(0.5rem + var(--safe-bottom));
 }
 
 /* Smooth scrolling */

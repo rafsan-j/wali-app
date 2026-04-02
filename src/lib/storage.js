@@ -12,13 +12,44 @@ const DEFAULT_SETTINGS = {
   geminiApiKey:  '',
   currency:      '৳',
   resetDay:      1, // day of month budget resets
+  lastResetDate: new Date().toISOString(), // Track when it was last reset
+  aiModel:       'gemini-2.5-flash-lite', // NEW: Default model
+}
+
+function checkBudgetReset(settings) {
+  const now = new Date();
+  const lastReset = new Date(settings.lastResetDate || now);
+  const resetDay = settings.resetDay || 1;
+
+  // Target reset date for the current month
+  const targetResetDate = new Date(now.getFullYear(), now.getMonth(), resetDay);
+
+  // If current date is past this month's reset day, and last reset was before this month's target
+  if (now >= targetResetDate && lastReset < targetResetDate) {
+    settings.spentSoFar = 0;
+    settings.lastResetDate = now.toISOString();
+    localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+  } 
+  // If current date is BEFORE this month's reset day, check if we missed last month's reset
+  else if (now < targetResetDate) {
+    const lastMonthTarget = new Date(now.getFullYear(), now.getMonth() - 1, resetDay);
+    if (lastReset < lastMonthTarget) {
+      settings.spentSoFar = 0;
+      settings.lastResetDate = now.toISOString();
+      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    }
+  }
+  return settings;
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 export function getSettings() {
   try {
     const raw = localStorage.getItem(KEYS.SETTINGS)
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS
+    let settings = raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS
+    
+    // Auto-reset check every time settings are fetched
+    return checkBudgetReset(settings);
   } catch { return DEFAULT_SETTINGS }
 }
 
