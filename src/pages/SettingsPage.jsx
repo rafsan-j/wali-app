@@ -28,7 +28,9 @@ export default function SettingsPage() {
     spentSoFar:   settings.spentSoFar,
     currency:     settings.currency,
     resetDay:     settings.resetDay || 1,
-    aiModel:      settings.aiModel || 'gemini-2.5-flash-lite', // NEW
+    aiModel:      settings.aiModel || 'gemini-2.5-flash-lite',
+    enableSinkingFunds: settings.enableSinkingFunds || false,
+    autoSync:     settings.autoSync || false, // NEW
   })
 
   useEffect(() => {
@@ -88,7 +90,11 @@ export default function SettingsPage() {
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    setSyncMessage('')
+    // NEW: Wipe local data on sign out to prevent account cross-contamination
+    localStorage.removeItem('wali_settings')
+    localStorage.removeItem('wali_evaluations')
+    localStorage.removeItem('wali_timers')
+    window.location.reload() // Force UI reset to default state
   }
 
   // --- Cloud Sync Functions ---
@@ -125,6 +131,36 @@ export default function SettingsPage() {
     }
   }
 
+    async function handleAutoSyncToggle(e) {
+    const checked = e.target.checked
+    setForm(prev => ({ ...prev, autoSync: checked }))
+    
+    if (checked) {
+      if (!window.confirm('This will fetch your latest cloud backup and enable automatic syncing. Continue?')) {
+        setForm(prev => ({ ...prev, autoSync: false }))
+        return
+      }
+      
+      setSyncLoading(true)
+      setSyncMessage('Fetching cloud data...')
+      const { data, error } = await supabase.from('wali_sync').select('payload').eq('user_id', user.id).single()
+      
+      if (data && data.payload) {
+        const payload = data.payload
+        if (!payload.settings) payload.settings = {}
+        payload.settings.autoSync = true // Force it to stay on after pulling
+        applyCloudPayload(payload) // This reloads the window
+      } else {
+        updateSettings({ ...form, autoSync: true })
+        await pushToCloud()
+        setSyncMessage('Auto-sync enabled and first backup complete.')
+      }
+      setSyncLoading(false)
+    } else {
+      updateSettings({ ...form, autoSync: false })
+    }
+  }
+
   return (
     <motion.div {...pageTransition} className="max-w-xl mx-auto px-4 md:px-6 pt-6 pb-28 scroll-area">
       <div className="mb-6">
@@ -134,11 +170,11 @@ export default function SettingsPage() {
 
       <form onSubmit={handleSave} className="space-y-4">
         {/* --- CLOUD SYNC SECTION --- */}
-        <div className="card p-5 border-wali-green/20">
+        <div className="card p-5 border-wali-green/20 transition-all duration-300">
           <p className="section-label text-wali-green">Cloud Sync & Backup</p>
           
           {!user ? (
-            <div className="space-y-3">
+             <div className="space-y-3 mt-3 animate-fade-in">
               <p className="text-xs text-zinc-400">Create an account to backup and sync your data across devices.</p>
               <input
                 type="email" placeholder="Email" className="input-base"
@@ -154,24 +190,51 @@ export default function SettingsPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 mt-3 animate-fade-in">
               <div className="flex justify-between items-center bg-zinc-800/50 p-3 rounded-lg border border-zinc-700/50">
                 <div>
                   <p className="text-xs text-zinc-500">Logged in as</p>
                   <p className="text-sm font-medium text-zinc-200 truncate max-w-[200px]">{user.email}</p>
                 </div>
-                <button type="button" onClick={handleSignOut} className="text-xs text-zinc-400 underline">Sign out</button>
+                <button type="button" onClick={handleSignOut} className="text-xs text-wali-warn/80 hover:text-wali-warn transition-colors">Sign out</button>
               </div>
               
-              <div className="flex gap-2">
-                <button type="button" onClick={pushToCloud} disabled={syncLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                  Backup
-                </button>
-                <button type="button" onClick={pullFromCloud} disabled={syncLoading} className="btn-primary flex-1 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Restore
-                </button>
+              {/* Dynamic UI based on Auto-Sync */}
+              {form.autoSync ? (
+                 <div className="text-center p-4 bg-wali-green/10 border border-wali-green/20 rounded-lg shadow-inner">
+                    <p className="text-sm text-wali-green font-medium flex items-center justify-center gap-2">
+                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                       Auto-Sync Active
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-1">Changes are saved instantly.</p>
+                 </div>
+              ) : (
+                 <div className="space-y-3">
+                    <div className="p-3 bg-wali-warn/10 border border-wali-warn/20 rounded-lg text-center">
+                       <p className="text-xs text-wali-warn/90 font-medium leading-relaxed">
+                         Data is not synced automatically right now. Back up manually or turn on Auto-Sync below.
+                       </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={pushToCloud} disabled={syncLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                        Backup
+                      </button>
+                      <button type="button" onClick={pullFromCloud} disabled={syncLoading} className="btn-primary flex-1 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center gap-2">
+                        Restore
+                      </button>
+                    </div>
+                 </div>
+              )}
+
+              {/* The Toggle Switch */}
+              <div className="flex items-center justify-between p-3 mt-4 bg-zinc-950/50 rounded-lg border border-zinc-800">
+                 <div>
+                   <p className="text-sm font-medium text-zinc-200">Auto-Sync</p>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={form.autoSync} onChange={handleAutoSyncToggle} disabled={syncLoading} />
+                    <div className="w-10 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-wali-green"></div>
+                 </label>
               </div>
             </div>
           )}
@@ -195,6 +258,25 @@ export default function SettingsPage() {
         {/* AI Model Selection */}
         <div className="card p-5">
           <p className="section-label">AI Intelligence Level</p>
+          {/* Sinking Funds / Savings Buckets Toggle */}
+        <div className="card p-5">
+          <p className="section-label mb-2">Item Savings Buckets</p>
+          <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+            Allow assigning saved money to specific items in your history before purchasing them.
+          </p>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div className={`w-11 h-6 rounded-full transition-colors relative ${form.enableSinkingFunds ? 'bg-wali-green' : 'bg-zinc-700'}`}>
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${form.enableSinkingFunds ? 'left-6' : 'left-1'}`} />
+            </div>
+            <input 
+              type="checkbox" 
+              className="hidden" 
+              checked={form.enableSinkingFunds} 
+              onChange={(e) => setForm(prev => ({ ...prev, enableSinkingFunds: e.target.checked }))} 
+            />
+            <span className="text-sm font-medium text-zinc-300">Enable feature</span>
+          </label>
+        </div>
           <div className="flex gap-2 mt-3">
             <button
               type="button"

@@ -1,160 +1,180 @@
+// src/pages/DashboardPage.jsx
 import { useMemo } from 'react'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell
-} from 'recharts'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useEvaluations, useSettings } from '../hooks/useStorage'
-import { StatCard, EmptyState } from '../components/UI'
+import { useSettings, useEvaluations } from '../hooks/useStorage'
 import { formatMoney } from '../lib/utils'
+import { Scale, PiggyBank, History, ChevronRight, AlertTriangle, TrendingUp } from 'lucide-react'
 
-const PIE_COLORS = ['#1D9E75', '#D85A30', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899', '#6366F1']
-
-// Reusable page transition settings
-export const pageTransition = {
-  initial: { opacity: 0, y: 15 },
-  animate: { opacity: 1, y: 0 },
-  exit:    { opacity: 0, y: -15 },
-  transition: { duration: 0.3, ease: 'easeOut' }
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } }
 }
 
-function CustomTooltip({ active, payload, label, currency }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-zinc-800/90 backdrop-blur-md border border-zinc-700 rounded-xl px-3 py-2 text-xs shadow-xl">
-      <p className="text-zinc-400 mb-1">{label || payload[0].name}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.fill || p.color }} className="font-medium">
-          {p.name}: {formatMoney(Math.round(p.value), currency)}
-        </p>
-      ))}
-    </div>
-  )
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { ease: 'easeOut', duration: 0.4 } }
 }
 
 export default function DashboardPage() {
+  const { settings } = useSettings()
   const { evaluations } = useEvaluations()
-  const { settings }    = useSettings()
 
-  const stats = useMemo(() => {
-    const discouraged = evaluations.filter(e => e.verdict === 'discourage')
-    const approved    = evaluations.filter(e => e.verdict === 'approve')
+  // 1. Calculate Budget Stats
+  const limit = settings.monthlyLimit || 0
+  const spent = settings.spentSoFar || 0
+  const remaining = Math.max(0, limit - spent)
+  const percentUsed = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
+  
+  // Dynamic color for the budget progress bar
+  const progressColor = percentUsed > 90 ? 'bg-red-500' : percentUsed > 75 ? 'bg-wali-warn' : 'bg-wali-green'
 
-    const spentOnWants = discouraged.reduce((s, e) => s + (e.price || 0), 0)
-    const spentOnNeeds = approved.reduce((s, e) => s + (e.price || 0), 0)
-    const redirected   = discouraged.reduce((s, e) => s + (e.price || 0), 0)
-    const projected5yr = Math.round(redirected * Math.pow(1.08, 5))
-    const resistRate   = evaluations.length > 0
-      ? Math.round((discouraged.length / evaluations.length) * 100) : 0
-
-    return { spentOnWants, spentOnNeeds, redirected, projected5yr, resistRate, total: evaluations.length }
+  // 2. Calculate Active Goals (To-Buy List snapshot)
+  const activeItems = useMemo(() => {
+    return evaluations
+      .filter(e => !e.purchased)
+      .sort((a, b) => (a.custom_order ?? 999) - (b.custom_order ?? 999))
+      .slice(0, 3) // Get top 3 priority items
   }, [evaluations])
 
-  const monthlyData = useMemo(() => {
-    const months = []
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date()
-      d.setMonth(d.getMonth() - i)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const label = d.toLocaleDateString('en-GB', { month: 'short' })
-      const entries = evaluations.filter(e => e.createdAt?.startsWith(key))
-      const wants = entries.filter(e => e.verdict === 'discourage').reduce((s, e) => s + (e.price || 0), 0)
-      const needs = entries.filter(e => e.verdict === 'approve').reduce((s, e) => s + (e.price || 0), 0)
-      months.push({ label, wants, needs })
-    }
-    return months
-  }, [evaluations])
+  // Calculate total savings progress across all active items
+  const totalSaved = activeItems.reduce((sum, item) => sum + (item.saved_amount || 0), 0)
+  const totalTarget = activeItems.reduce((sum, item) => sum + item.price, 0)
+  const totalSavingsPercent = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0
 
-  // NEW: Aggregate spending intent by category for the Pie Chart
-  const categoryData = useMemo(() => {
-    const counts = {}
-    evaluations.forEach(e => {
-      counts[e.category] = (counts[e.category] || 0) + (e.price || 0)
-    })
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name, value }))
-      .filter(item => item.value > 0)
-      .sort((a, b) => b.value - a.value)
+  // 3. Calculate Recent Purchases
+  const recentPurchases = useMemo(() => {
+    return evaluations
+      .filter(e => e.purchased)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 3) // Get last 3
   }, [evaluations])
-
-  if (evaluations.length === 0) {
-    return (
-      <motion.div {...pageTransition} className="max-w-xl mx-auto px-4 md:px-6 pt-6 pb-28">
-        <h1 className="font-display text-3xl text-zinc-100 mb-1">Dashboard</h1>
-        <p className="text-zinc-400 text-sm mb-6">Wealth vs. image</p>
-        <EmptyState icon="📊" title="No data yet" subtitle="Your financial patterns will appear here." />
-      </motion.div>
-    )
-  }
 
   return (
-    // Max-w-xl makes it gracefully wider on PC
-    <motion.div {...pageTransition} className="max-w-xl mx-auto px-4 md:px-6 pt-6 pb-28 scroll-area">
-      <div className="mb-6">
-        <h1 className="font-display text-3xl text-zinc-100">Dashboard</h1>
-        <p className="text-zinc-400 text-sm mt-1">Wealth vs. image</p>
-      </div>
+    <motion.div variants={container} initial="hidden" animate="show" className="max-w-4xl mx-auto px-4 md:px-8 pt-6 pb-28 md:pb-12 scroll-area">
+      
+      {/* Header */}
+      <motion.div variants={item} className="mb-8">
+        <h1 className="font-display text-3xl text-zinc-100 tracking-wide">Assalamu Alaikum.</h1>
+        <p className="text-zinc-400 text-sm mt-1">Here is your financial overview for this cycle.</p>
+      </motion.div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
-        <StatCard label="Redirected" value={`${formatMoney(stats.redirected, settings.currency)}`} sub="Capital preserved" accent="text-wali-green" />
-        <StatCard label="5-year projection" value={`${formatMoney(stats.projected5yr, settings.currency)}`} sub="At 8% Halal return" accent="text-wali-green" />
-        <StatCard label="Resistance rate" value={`${stats.resistRate}%`} sub="Discouraged" />
-        <StatCard label="Total items" value={stats.total} sub="Evaluations" />
-      </div>
-
-      <div className="card p-4 md:p-6 mb-4 hover:border-zinc-700/50 transition-colors">
-        <p className="section-label">This month</p>
-        <div className="flex justify-between items-end">
-          <div>
-            <p className="text-3xl font-display text-zinc-100">
-              {formatMoney(settings.spentSoFar, settings.currency)}
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              of {formatMoney(settings.monthlyLimit, settings.currency)} limit
-            </p>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        {/* --- MAIN HERO: Budget Tracker --- */}
+        <motion.div variants={item} className="md:col-span-8 card p-6 md:p-8 border-zinc-800 bg-zinc-900/40 relative overflow-hidden group">
+          {/* Decorative background blur */}
+          <div className={`absolute -right-20 -top-20 w-64 h-64 blur-[100px] opacity-10 rounded-full pointer-events-none transition-colors ${progressColor}`} />
+          
+          <div className="flex justify-between items-start mb-2 relative z-10">
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Remaining Budget</p>
+            {percentUsed > 90 && (
+              <span className="flex items-center gap-1.5 text-[10px] text-red-400 bg-red-400/10 px-2 py-1 rounded border border-red-400/20 font-bold uppercase tracking-wider">
+                <AlertTriangle className="w-3 h-3" /> Critical
+              </span>
+            )}
           </div>
-          <p className={settings.spentSoFar > settings.monthlyLimit ? 'text-wali-warn text-sm font-medium' : 'text-wali-green text-sm font-medium'}>
-            {formatMoney(Math.abs(settings.monthlyLimit - settings.spentSoFar), settings.currency)}{' '}
-            {settings.spentSoFar > settings.monthlyLimit ? 'over' : 'left'}
-          </p>
-        </div>
-      </div>
+          
+          <h2 className="text-5xl md:text-6xl font-display tracking-tight text-zinc-100 mb-6 relative z-10">
+            {formatMoney(remaining, settings.currency)}
+          </h2>
 
-      {/* Grid wrapper for charts on larger screens */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div className="card p-4 md:p-6 hover:border-zinc-700/50 transition-colors">
-          <p className="section-label">Wants vs. needs (6mo)</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={monthlyData} barSize={10} barGap={4} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-              <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip content={<CustomTooltip currency={settings.currency} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <Bar dataKey="wants" name="Wants" radius={[4, 4, 0, 0]} fill="#D85A30" opacity={0.8} />
-              <Bar dataKey="needs" name="Needs" radius={[4, 4, 0, 0]} fill="#1D9E75" opacity={0.8} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+          <div className="space-y-2 relative z-10">
+            <div className="flex justify-between text-xs font-medium text-zinc-400">
+              <span>Spent: {formatMoney(spent, settings.currency)}</span>
+              <span>Limit: {formatMoney(limit, settings.currency)}</span>
+            </div>
+            <div className="h-2 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
+              <div className={`h-full transition-all duration-1000 ${progressColor}`} style={{ width: `${percentUsed}%` }} />
+            </div>
+          </div>
+        </motion.div>
 
-        <div className="card p-4 md:p-6 hover:border-zinc-700/50 transition-colors">
-          <p className="section-label">Spending by Category</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-              <Pie
-                data={categoryData}
-                cx="50%" cy="50%"
-                innerRadius={50} outerRadius={75}
-                paddingAngle={4}
-                dataKey="value"
-                stroke="none"
-              >
-                {categoryData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip currency={settings.currency} />} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {/* --- QUICK ACTION: Evaluate --- */}
+        <motion.div variants={item} className="md:col-span-4 flex flex-col">
+          <Link to="/evaluate" className="flex-1 card p-6 border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-950 hover:border-wali-green/50 transition-all flex flex-col items-center justify-center text-center group min-h-[160px]">
+            <div className="w-14 h-14 rounded-full bg-wali-green/10 flex items-center justify-center text-wali-green mb-4 group-hover:scale-110 group-hover:bg-wali-green/20 transition-all">
+              <Scale className="w-6 h-6" />
+            </div>
+            <h3 className="font-display text-lg text-zinc-200">Evaluate Purchase</h3>
+            <p className="text-xs text-zinc-500 mt-1">Consult Wali before buying.</p>
+          </Link>
+        </motion.div>
+
+        {/* --- ACTIVE GOALS (To-Buy Preview) --- */}
+        <motion.div variants={item} className="md:col-span-6 card p-0 border-zinc-800 bg-zinc-900/20 overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-zinc-800/60 flex justify-between items-center bg-zinc-900/40">
+            <div className="flex items-center gap-2">
+              <PiggyBank className="w-4 h-4 text-wali-gold" />
+              <h3 className="font-medium text-zinc-200">Top Priorities</h3>
+            </div>
+            <Link to="/to-buy" className="text-xs text-zinc-500 hover:text-wali-gold flex items-center gap-1 transition-colors">
+              View All <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          
+          <div className="p-5 flex-1 flex flex-col justify-center">
+            {activeItems.length > 0 ? (
+              <div className="space-y-4">
+                {activeItems.map(item => {
+                  const itemProgress = item.price > 0 ? Math.min(100, ((item.saved_amount || 0) / item.price) * 100) : 0
+                  return (
+                    <div key={item.id}>
+                      <div className="flex justify-between text-sm mb-1.5">
+                        <span className="text-zinc-300 truncate pr-4">{item.name}</span>
+                        <span className="text-zinc-500 font-medium shrink-0">{formatMoney(item.price, settings.currency)}</span>
+                      </div>
+                      <div className="h-1 w-full bg-zinc-950 rounded-full overflow-hidden">
+                        <div className="h-full bg-wali-gold transition-all duration-500" style={{ width: `${itemProgress}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-zinc-500">
+                <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">Your To-Buy list is empty.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* --- RECENT HISTORY --- */}
+        <motion.div variants={item} className="md:col-span-6 card p-0 border-zinc-800 bg-zinc-900/20 overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-zinc-800/60 flex justify-between items-center bg-zinc-900/40">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-zinc-400" />
+              <h3 className="font-medium text-zinc-200">Recent Purchases</h3>
+            </div>
+            <Link to="/history" className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors">
+              View Log <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          
+          <div className="p-0 flex-1 flex flex-col justify-center divide-y divide-zinc-800/50">
+            {recentPurchases.length > 0 ? (
+              recentPurchases.map(item => (
+                <div key={item.id} className="p-4 flex justify-between items-center hover:bg-zinc-800/20 transition-colors">
+                  <div className="truncate pr-4">
+                    <p className="text-sm text-zinc-300 truncate">{item.name}</p>
+                    <p className="text-xs text-zinc-600 mt-0.5">
+                      {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-zinc-400 shrink-0">
+                    {formatMoney(item.price, settings.currency)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10 text-zinc-500">
+                <p className="text-sm">No recent purchases.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
       </div>
     </motion.div>
   )

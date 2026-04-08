@@ -62,15 +62,28 @@ export default function EvaluatePage() {
         item: { ...form, price, currency: settings.currency, isReEvaluation: !!duplicateImpulse },
       })
 
+      // BUG FIX: Added argument, israf_flag, and nafs_flag to the save payload
       const entry = addEvaluation({
         name: form.name, price, category: form.category, necessity: parseInt(form.necessity), reason: form.reason,
         verdict: res.verdict, category_class: res.category, investment_vehicle: res.investment_vehicle,
         projected_5yr: res.projected_5yr, cooling_hours: res.cooling_hours,
+        argument: res.argument,
+        israf_flag: res.israf_flag,
+        nafs_flag: res.nafs_flag
       })
 
       setEntryId(entry.id)
     } catch (err) {
-      setError(err.message || 'Something went wrong. Try again.')
+      if (err.message === 'QUOTA_EXCEEDED' || err.message.toLowerCase().includes('fetch')) {
+        const entry = addEvaluation({
+          name: form.name, price, category: form.category, necessity: parseInt(form.necessity), reason: form.reason,
+          verdict: 'pending', category_class: form.category, investment_vehicle: 'Pending AI Analysis',
+          projected_5yr: 0, cooling_hours: 0, argument: 'Pending offline sync.'
+        })
+        setEntryId(entry.id)
+      } else {
+        setError(err.message || 'Something went wrong. Try again.')
+      }
     } finally {
       setLoading(false)
     }

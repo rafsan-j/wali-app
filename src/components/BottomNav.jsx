@@ -2,12 +2,13 @@ import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { motion } from 'framer-motion'
 // Import professional icons from Lucide
-import { LayoutDashboard, Scale, History, Settings } from 'lucide-react'
+import { LayoutDashboard, Scale, ClipboardList, History, Settings } from 'lucide-react'
 
 export default function BottomNav() {
   const links = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/evaluate', icon: Scale, label: 'Wali' },
+    { to: '/to-buy', icon: ClipboardList, label: 'To-Buy' },
     { to: '/history', icon: History, label: 'History' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ]
