@@ -1,3 +1,4 @@
+// src/pages/EvaluatePage.jsx
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { evaluateWithWali } from '../lib/gemini'
@@ -5,6 +6,8 @@ import { useSettings, useEvaluations } from '../hooks/useStorage'
 import { BudgetBar, LoadingDots } from '../components/UI'
 import ResultCard from '../components/ResultCard'
 import { formatMoney } from '../lib/utils'
+import { ShoppingBag, Tag, FolderOpen, Target, MessageSquare, AlertCircle, Copy, Key, BrainCircuit } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 const pageTransition = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -15 }, transition: { duration: 0.3, ease: 'easeOut' } }
 
@@ -32,6 +35,7 @@ export default function EvaluatePage() {
   const price     = parseFloat(form.price) || 0
   const remaining = settings.monthlyLimit - settings.spentSoFar
   const blocked   = price > remaining && remaining > 0
+  const missingKey = !settings.geminiApiKey
   
   // Find the exact active entry in the DB to pass to the ResultCard
   const currentEntry = entryId ? evaluations.find(e => e.id === entryId) : null
@@ -40,11 +44,10 @@ export default function EvaluatePage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.name || !form.price || blocked) return
+    if (!form.name || !form.price || blocked || missingKey) return
 
     if (price <= 0) return setError('Price must be greater than 0.')
     if (!form.reason || form.reason.trim().length < 10) return setError('Be honest. Please provide a real reason for Wali to analyze.')
-    if (!settings.geminiApiKey) return setError('Add your Gemini API key in Settings first.')
 
     const duplicateImpulse = evaluations.find(prevEval => 
       prevEval.name.toLowerCase().trim() === form.name.toLowerCase().trim() &&
@@ -62,7 +65,6 @@ export default function EvaluatePage() {
         item: { ...form, price, currency: settings.currency, isReEvaluation: !!duplicateImpulse },
       })
 
-      // BUG FIX: Added argument, israf_flag, and nafs_flag to the save payload
       const entry = addEvaluation({
         name: form.name, price, category: form.category, necessity: parseInt(form.necessity), reason: form.reason,
         verdict: res.verdict, category_class: res.category, investment_vehicle: res.investment_vehicle,
@@ -100,70 +102,161 @@ export default function EvaluatePage() {
       <AnimatePresence mode="wait">
         {!currentEntry ? (
           <motion.div key="form" className="w-full max-w-xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
-            <div className="mb-6">
-              <h1 className="font-display text-3xl text-zinc-100">Wali</h1>
-              <p className="text-zinc-400 text-sm mt-1">Your Islamic financial guardian</p>
+            
+            <div className="mb-8">
+              <h1 className="font-display text-3xl text-zinc-100">Consult Wali</h1>
+              <p className="text-zinc-400 text-sm mt-1">Submit your purchase for Islamic financial analysis.</p>
             </div>
 
-            <div className="card p-5 md:p-6 mb-6 hover:border-zinc-700/50 transition-colors">
-              <p className="section-label">Monthly budget</p>
+            {missingKey && (
+              <div className="mb-6 card p-5 border-wali-warn/30 bg-wali-warn/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Key className="w-5 h-5 text-wali-warn shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-wali-warn">API Key Required</p>
+                    <p className="text-xs text-zinc-400 mt-1">Wali's engine requires a Gemini API key to function.</p>
+                  </div>
+                </div>
+                <Link to="/settings" className="shrink-0 px-4 py-2 bg-wali-warn/20 hover:bg-wali-warn/30 text-wali-warn text-xs font-bold rounded-lg transition-colors">
+                  Go to Settings
+                </Link>
+              </div>
+            )}
+
+            <div className="card p-5 md:p-6 mb-6 border-zinc-800 bg-zinc-900/30">
+              <div className="flex justify-between items-end mb-3">
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Monthly Limit</p>
+                <p className="text-sm font-medium text-zinc-300">
+                  <span className={remaining < 0 ? 'text-red-400' : 'text-zinc-100'}>{formatMoney(remaining, settings.currency)}</span> remaining
+                </p>
+              </div>
               <BudgetBar spent={settings.spentSoFar} limit={settings.monthlyLimit} currency={settings.currency} />
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="card p-5 md:p-6 space-y-5 hover:border-zinc-700/50 transition-colors">
-                <p className="section-label">Evaluate a purchase</p>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="card p-0 border-zinc-800 bg-zinc-900/20 overflow-hidden relative">
                 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Loading Overlay */}
+                <AnimatePresence>
+                  {loading && (
+                    <motion.div 
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-10 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl border border-wali-green/30"
+                    >
+                      <BrainCircuit className="w-10 h-10 text-wali-green animate-pulse mb-4" />
+                      <div className="flex items-center gap-3 text-wali-green font-medium tracking-wide">
+                        <LoadingDots /> Wali is deliberating...
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-3 font-medium">Checking Maqasid al-Shariah principles</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="p-5 border-b border-zinc-800/60 bg-zinc-900/40">
+                  <h2 className="font-medium text-zinc-200 flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-zinc-400" /> Purchase Details
+                  </h2>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-2 font-medium flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5" /> Item Name
+                      </label>
+                      <input className="input-base w-full bg-zinc-950/50" placeholder="e.g. Mechanical Keyboard" value={form.name} onChange={set('name')} required disabled={loading} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-2 font-medium flex items-center gap-1.5">
+                        <FolderOpen className="w-3.5 h-3.5" /> Category
+                      </label>
+                      <select className="input-base w-full bg-zinc-950/50" value={form.category} onChange={set('category')} disabled={loading}>
+                        {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-2 font-medium">Item name</label>
-                    <input className="input-base" placeholder="e.g. Mechanical Keyboard" value={form.name} onChange={set('name')} required />
+                    <label className="block text-xs text-zinc-400 mb-2 font-medium">Price</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 font-medium">{settings.currency}</span>
+                      <input type="number" className="input-base w-full bg-zinc-950/50 pl-10" placeholder="8500" min="0" value={form.price} onChange={set('price')} required disabled={loading} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-zinc-400 mb-2 font-medium">Price ({settings.currency})</label>
-                    <input type="number" className="input-base" placeholder="8500" min="0" value={form.price} onChange={set('price')} required />
+
+                  <div className="pt-2">
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" /> How necessary is this?
+                      </label>
+                      <span className={`text-sm font-bold px-2 py-0.5 rounded ${form.necessity >= 8 ? 'bg-wali-green/10 text-wali-green' : form.necessity >= 5 ? 'bg-wali-gold/10 text-wali-gold' : 'bg-zinc-800 text-zinc-400'}`}>
+                        {form.necessity}<span className="opacity-50 text-xs">/10</span>
+                      </span>
+                    </div>
+                    <input type="range" min="1" max="10" step="1" value={form.necessity} onChange={set('necessity')} className="w-full accent-wali-green cursor-pointer" disabled={loading} />
+                    <div className="flex justify-between text-[10px] text-zinc-500 font-medium mt-2 uppercase tracking-wider">
+                      <span>Pure Want</span>
+                      <span>Absolute Need</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800/60">
+                    <label className="block text-xs text-zinc-400 mb-2 font-medium flex items-center gap-1.5 mt-4">
+                      <MessageSquare className="w-3.5 h-3.5" /> Justification
+                    </label>
+                    <textarea 
+                      className="input-base w-full bg-zinc-950/50 resize-y min-h-[100px]" 
+                      placeholder="Be honest. Why do you believe you need this right now? Wali will analyze your reasoning." 
+                      value={form.reason} 
+                      onChange={set('reason')} 
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <label className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-colors ${form.hasDuplicate ? 'bg-zinc-800/50 border-zinc-700' : 'bg-zinc-950/50 border-zinc-800/50 hover:border-zinc-700'}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${form.hasDuplicate ? 'bg-wali-green border-wali-green' : 'border-zinc-600'}`}>
+                        {form.hasDuplicate && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}><Copy className="w-3 h-3 text-zinc-950" /></motion.div>}
+                      </div>
+                      <input type="checkbox" checked={form.hasDuplicate} onChange={set('hasDuplicate')} className="hidden" disabled={loading} />
+                      <div>
+                        <span className="text-sm font-medium text-zinc-200 block">I already own something similar</span>
+                        <span className="text-[10px] text-zinc-500">Checking this triggers a stricter necessity evaluation.</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-2 font-medium">Category</label>
-                  <select className="input-base" value={form.category} onChange={set('category')}>
-                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-xs text-zinc-400 font-medium">How necessary?</label>
-                    <span className="text-sm font-bold text-zinc-200">{form.necessity}<span className="text-zinc-500 font-medium">/10</span></span>
-                  </div>
-                  <input type="range" min="1" max="10" step="1" value={form.necessity} onChange={set('necessity')} className="w-full accent-wali-green" />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-2 font-medium">Why do you believe you need this right now?</label>
-                  <textarea className="input-base resize-none h-24" placeholder="Be honest. Wali is watching." value={form.reason} onChange={set('reason')} />
-                </div>
-
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={form.hasDuplicate} onChange={set('hasDuplicate')} className="w-4 h-4 accent-wali-green rounded" />
-                  <span className="text-xs text-zinc-400 font-medium">I already own something similar</span>
-                </label>
               </div>
 
-              {blocked && (
-                <div className="rounded-lg px-4 py-3 bg-wali-warn/10 border border-wali-warn/20 text-wali-warn text-sm font-medium">
-                  This exceeds your remaining budget of {formatMoney(Math.max(0, remaining), settings.currency)}. Purchase blocked.
-                </div>
-              )}
-              {error && (
-                <div className="rounded-lg px-4 py-3 bg-red-950/40 border border-red-800/30 text-red-400 text-sm font-medium">
-                  {error}
-                </div>
-              )}
+              <AnimatePresence>
+                {blocked && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                    <div className="rounded-xl p-4 bg-red-950/30 border border-red-900/50 text-red-400 flex items-start gap-3 mt-4">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold">Purchase Blocked</p>
+                        <p className="text-xs mt-1 text-red-400/80">This exceeds your remaining budget of {formatMoney(Math.max(0, remaining), settings.currency)}. You cannot submit this to Wali.</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-              <button type="submit" className="btn-primary py-4" disabled={loading || blocked}>
-                {loading ? <><LoadingDots /><span className="ml-2 text-white/70">Wali is deliberating…</span></> : 'Submit to Wali'}
+                {error && !blocked && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                    <div className="rounded-xl p-4 bg-wali-warn/10 border border-wali-warn/30 text-wali-warn flex items-start gap-3 mt-4">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <p className="text-sm font-medium mt-0.5">{error}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <button 
+                type="submit" 
+                className={`w-full py-4 rounded-xl font-bold tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${loading || blocked || missingKey ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-wali-green text-zinc-950 hover:bg-[#198f69] shadow-wali-green/20'}`}
+                disabled={loading || blocked || missingKey}
+              >
+                {loading ? 'Consulting...' : 'Submit to Wali'}
               </button>
             </form>
           </motion.div>

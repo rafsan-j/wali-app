@@ -32,8 +32,8 @@ export default function ToBuyPage() {
 
   // Filter and initially sort the items
   const activeItems = useMemo(() => {
-    // ONLY show unbought items
-    let result = evaluations.filter(e => !e.purchased)
+    // ONLY show unbought AND undiverted items
+    let result = evaluations.filter(e => !e.purchased && !e.diverted)
 
     if (activeCategory !== 'all') {
       result = result.filter(e => e.category === activeCategory)

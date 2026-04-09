@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useSettings, useEvaluations } from '../hooks/useStorage'
 import { formatMoney } from '../lib/utils'
-import { Scale, PiggyBank, History, ChevronRight, AlertTriangle, TrendingUp } from 'lucide-react'
+import { Scale, PiggyBank, History, ChevronRight, AlertTriangle, TrendingUp, ShieldCheck } from 'lucide-react'
 
 const container = {
   hidden: { opacity: 0 },
@@ -26,28 +26,29 @@ export default function DashboardPage() {
   const remaining = Math.max(0, limit - spent)
   const percentUsed = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
   
-  // Dynamic color for the budget progress bar
   const progressColor = percentUsed > 90 ? 'bg-red-500' : percentUsed > 75 ? 'bg-wali-warn' : 'bg-wali-green'
 
   // 2. Calculate Active Goals (To-Buy List snapshot)
   const activeItems = useMemo(() => {
     return evaluations
-      .filter(e => !e.purchased)
+      .filter(e => !e.purchased && !e.diverted)
       .sort((a, b) => (a.custom_order ?? 999) - (b.custom_order ?? 999))
-      .slice(0, 3) // Get top 3 priority items
+      .slice(0, 3) 
   }, [evaluations])
-
-  // Calculate total savings progress across all active items
-  const totalSaved = activeItems.reduce((sum, item) => sum + (item.saved_amount || 0), 0)
-  const totalTarget = activeItems.reduce((sum, item) => sum + item.price, 0)
-  const totalSavingsPercent = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0
 
   // 3. Calculate Recent Purchases
   const recentPurchases = useMemo(() => {
     return evaluations
       .filter(e => e.purchased)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 3) // Get last 3
+      .slice(0, 3)
+  }, [evaluations])
+
+  // 4. Calculate Diverted Capital for the Vault Widget
+  const divertedCapital = useMemo(() => {
+    return evaluations
+      .filter(e => e.diverted)
+      .reduce((sum, evalItem) => sum + evalItem.price, 0)
   }, [evaluations])
 
   return (
@@ -63,7 +64,6 @@ export default function DashboardPage() {
         
         {/* --- MAIN HERO: Budget Tracker --- */}
         <motion.div variants={item} className="md:col-span-8 card p-6 md:p-8 border-zinc-800 bg-zinc-900/40 relative overflow-hidden group">
-          {/* Decorative background blur */}
           <div className={`absolute -right-20 -top-20 w-64 h-64 blur-[100px] opacity-10 rounded-full pointer-events-none transition-colors ${progressColor}`} />
           
           <div className="flex justify-between items-start mb-2 relative z-10">
@@ -101,6 +101,24 @@ export default function DashboardPage() {
           </Link>
         </motion.div>
 
+        {/* --- VAULT SNAPSHOT --- */}
+        <motion.div variants={item} className="md:col-span-12">
+          <Link to="/vault" className="card p-5 border-wali-gold/20 bg-wali-gold/5 flex flex-col md:flex-row justify-between items-center gap-4 group hover:border-wali-gold/40 transition-all">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-wali-gold/10 flex items-center justify-center text-wali-gold">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Wali's Vault</p>
+                <p className="text-sm text-zinc-300">You have preserved <span className="text-wali-gold font-bold">{formatMoney(divertedCapital, settings.currency)}</span> from impulse buys.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-wali-gold text-xs font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+              Enter Vault <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+        </motion.div>
+
         {/* --- ACTIVE GOALS (To-Buy Preview) --- */}
         <motion.div variants={item} className="md:col-span-6 card p-0 border-zinc-800 bg-zinc-900/20 overflow-hidden flex flex-col">
           <div className="p-5 border-b border-zinc-800/60 flex justify-between items-center bg-zinc-900/40">
@@ -116,13 +134,13 @@ export default function DashboardPage() {
           <div className="p-5 flex-1 flex flex-col justify-center">
             {activeItems.length > 0 ? (
               <div className="space-y-4">
-                {activeItems.map(item => {
-                  const itemProgress = item.price > 0 ? Math.min(100, ((item.saved_amount || 0) / item.price) * 100) : 0
+                {activeItems.map(activeItem => {
+                  const itemProgress = activeItem.price > 0 ? Math.min(100, ((activeItem.saved_amount || 0) / activeItem.price) * 100) : 0
                   return (
-                    <div key={item.id}>
+                    <div key={activeItem.id}>
                       <div className="flex justify-between text-sm mb-1.5">
-                        <span className="text-zinc-300 truncate pr-4">{item.name}</span>
-                        <span className="text-zinc-500 font-medium shrink-0">{formatMoney(item.price, settings.currency)}</span>
+                        <span className="text-zinc-300 truncate pr-4">{activeItem.name}</span>
+                        <span className="text-zinc-500 font-medium shrink-0">{formatMoney(activeItem.price, settings.currency)}</span>
                       </div>
                       <div className="h-1 w-full bg-zinc-950 rounded-full overflow-hidden">
                         <div className="h-full bg-wali-gold transition-all duration-500" style={{ width: `${itemProgress}%` }} />
@@ -154,16 +172,16 @@ export default function DashboardPage() {
           
           <div className="p-0 flex-1 flex flex-col justify-center divide-y divide-zinc-800/50">
             {recentPurchases.length > 0 ? (
-              recentPurchases.map(item => (
-                <div key={item.id} className="p-4 flex justify-between items-center hover:bg-zinc-800/20 transition-colors">
+              recentPurchases.map(historyItem => (
+                <div key={historyItem.id} className="p-4 flex justify-between items-center hover:bg-zinc-800/20 transition-colors">
                   <div className="truncate pr-4">
-                    <p className="text-sm text-zinc-300 truncate">{item.name}</p>
+                    <p className="text-sm text-zinc-300 truncate">{historyItem.name}</p>
                     <p className="text-xs text-zinc-600 mt-0.5">
-                      {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      {new Date(historyItem.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                   <span className="text-sm font-medium text-zinc-400 shrink-0">
-                    {formatMoney(item.price, settings.currency)}
+                    {formatMoney(historyItem.price, settings.currency)}
                   </span>
                 </div>
               ))

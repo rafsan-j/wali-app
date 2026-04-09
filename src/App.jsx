@@ -13,6 +13,10 @@ import SettingsPage from './pages/SettingsPage'
 import AuthPage from './pages/AuthPage'
 import ItemDetailPage from './pages/ItemDetailPage'
 import ToBuyPage from './pages/ToBuyPage'
+import VaultPage from './pages/VaultPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import { ToastProvider } from './context/ToastContext'
+import ToastContainer from './components/ToastContainer'
 
 export default function App() {
   const location = useLocation()
@@ -43,8 +47,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 2. Background Auto-Sync Listener (NEW)
-  // This listens for the 'wali_data_changed' event we added to useStorage.js
+  // 2. Background Auto-Sync Listener
   useEffect(() => {
     const handleSync = async () => {
       const settings = JSON.parse(localStorage.getItem('wali_settings') || '{}')
@@ -74,26 +77,33 @@ export default function App() {
 
   // Otherwise, render the main application
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-wali-green/30 flex">
-      {/* Desktop Navigation */}
-      <Sidebar />
-      
-      {/* Main Content Area */}
-      <main className="flex-1 min-w-0 pb-20 md:pb-0 relative">
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/evaluate" element={<EvaluatePage />} />
-            <Route path="/to-buy" element={<ToBuyPage />} /> {/* NEW ROUTE */}
-            <Route path="/history" element={<HistoryPage />} />
-            <Route path="/item/:id" element={<ItemDetailPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </AnimatePresence>
-      </main>
+    <ToastProvider>
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-wali-green/30 relative flex">
+        
+        <Sidebar />
+        
+        {/* FIXED: overflow-y-auto allows the page to scroll properly! */}
+        <main className="flex-1 h-[100dvh] relative overflow-y-auto pb-20 md:pb-0 flex flex-col">
+          <AnimatePresence mode="wait">
+             <Routes location={location} key={location.pathname}>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/evaluate" element={<EvaluatePage />} />
+                <Route path="/to-buy" element={<ToBuyPage />} />
+                <Route path="/vault" element={<VaultPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/history" element={<HistoryPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                
+                {/* FIXED: Restored the Item Detail Route so it stops crashing! */}
+                <Route path="/item/:id" element={<ItemDetailPage />} />
+             </Routes>
+          </AnimatePresence>
+        </main>
 
-      {/* Mobile Navigation */}
-      <BottomNav />
-    </div>
+        <BottomNav />
+        <ToastContainer />
+        
+      </div>
+    </ToastProvider>
   )
 }

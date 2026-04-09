@@ -1,13 +1,19 @@
 // src/components/HistoryItemCard.jsx
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { formatMoney } from '../lib/utils'
 import { VerdictBadge } from './UI'
-import { CalendarDays, ExternalLink, PiggyBank, CheckCircle2, ChevronRight, FileText } from 'lucide-react'
+import { CalendarDays, ExternalLink, PiggyBank, CheckCircle2, ChevronRight, FileText, ShieldCheck, Search, X } from 'lucide-react'
 import { useSettings, useEvaluations } from '../hooks/useStorage'
+import { useToast } from '../context/ToastContext' // <-- 1. IMPORT TOAST HOOK
 
 export default function HistoryItemCard({ entry, currency }) {
   const { settings, updateSettings } = useSettings()
   const { updateEvaluation } = useEvaluations()
+  const { addToast } = useToast() // <-- 2. INITIALIZE TOAST
+  
+  const [showSearch, setShowSearch] = useState(false)
 
   const date = new Date(entry.createdAt).toLocaleDateString('en-US', { 
     month: 'short', day: 'numeric', year: 'numeric' 
@@ -19,19 +25,30 @@ export default function HistoryItemCard({ entry, currency }) {
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(entry.name + ' best price')}`
   const darazUrl = `https://www.daraz.com.bd/catalog/?q=${encodeURIComponent(entry.name)}`
 
-  // NEW: The Mark as Bought logic
   function handleMarkBought(e) {
-    e.preventDefault() // Prevents the link wrapper from triggering
+    e.preventDefault() 
     if (window.confirm(`Mark "${entry.name}" as bought? This will deduct ${formatMoney(entry.price, currency)} from your budget.`)) {
       updateEvaluation(entry.id, { purchased: true })
       updateSettings({ spentSoFar: settings.spentSoFar + entry.price })
+      
+      // <-- 3. TRIGGER SUCCESS TOAST
+      addToast('Item marked as bought!', 'success') 
+    }
+  }
+
+  function handleVault(e) {
+    e.preventDefault()
+    if(window.confirm(`Divert ${formatMoney(entry.price, currency)} to Wali's Vault?`)) {
+      updateEvaluation(entry.id, { diverted: true })
+      
+      // <-- 4. TRIGGER VAULT TOAST
+      addToast('Capital Secured in Vault!', 'vault') 
     }
   }
 
   return (
     <div className="card p-0 flex flex-col border-zinc-800 hover:border-zinc-700 transition-all bg-zinc-900/40 relative overflow-hidden group shadow-md">
       
-      {/* Clickable Main Area -> Goes to Detail Page */}
       <Link to={`/item/${entry.id}`} className="p-4 md:p-5 block hover:bg-zinc-800/30 transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex-1 min-w-0 space-y-2">
@@ -68,7 +85,6 @@ export default function HistoryItemCard({ entry, currency }) {
           </div>
         </div>
 
-        {/* Persistent Progress Bar */}
         {settings.enableSinkingFunds && !isBought && (entry.saved_amount > 0) && (
           <div className="mt-4">
             <div className="flex justify-between items-end mb-1.5">
@@ -89,36 +105,65 @@ export default function HistoryItemCard({ entry, currency }) {
         )}
       </Link>
 
-      {/* Quick Actions Bar (Only if not bought) */}
       {!isBought && (
-        <div className="flex border-t border-zinc-800/60 bg-zinc-950/30 divide-x divide-zinc-800/60">
-          {entry.url ? (
-            <a href={entry.url} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
-              Buy Link <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          ) : (
-            <>
-              <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
-                Google <ExternalLink className="w-3 h-3"/>
-              </a>
-              <a href={darazUrl} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
-                Daraz <ExternalLink className="w-3 h-3"/>
-              </a>
-            </>
-          )}
-          
-          {/* NEW: The Mark as Bought Button */}
-          <button onClick={handleMarkBought} className="flex-1 py-3 text-xs font-medium text-wali-green hover:bg-wali-green/10 transition-colors flex items-center justify-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Bought
-          </button>
-          
-          <Link to={`/item/${entry.id}`} className="px-4 py-3 text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1">
-            <ChevronRight className="w-4 h-4" />
-          </Link>
+        <div className="border-t border-zinc-800/60 bg-zinc-950/30 overflow-hidden h-[45px] relative">
+          <AnimatePresence mode="wait">
+            
+            {showSearch && !entry.url ? (
+              <motion.div 
+                key="search-menu"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 flex divide-x divide-zinc-800/60"
+              >
+                <a href={darazUrl} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center justify-center gap-1.5">
+                  Daraz <ExternalLink className="w-3 h-3"/>
+                </a>
+                <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
+                  Google <ExternalLink className="w-3 h-3"/>
+                </a>
+                <button onClick={(e) => { e.preventDefault(); setShowSearch(false); }} className="px-4 py-3 text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center">
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="default-menu"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 flex divide-x divide-zinc-800/60"
+              >
+                {entry.url ? (
+                  <a href={entry.url} target="_blank" rel="noopener noreferrer" className="flex-1 py-3 text-xs font-medium text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
+                    Buy Link <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                ) : (
+                  <button onClick={(e) => { e.preventDefault(); setShowSearch(true); }} className="flex-1 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1.5">
+                    <Search className="w-3.5 h-3.5"/> Find
+                  </button>
+                )}
+                
+                <button onClick={handleVault} className="flex-1 py-3 text-xs font-medium text-wali-gold hover:bg-wali-gold/10 transition-colors flex items-center justify-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Vault
+                </button>
+
+                <button onClick={handleMarkBought} className="flex-1 py-3 text-xs font-medium text-wali-green hover:bg-wali-green/10 transition-colors flex items-center justify-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Bought
+                </button>
+                
+                <Link to={`/item/${entry.id}`} className="px-4 py-3 text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors flex items-center justify-center gap-1">
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
-      {/* Fully Funded Badge */}
       {progressPercent >= 100 && !isBought && settings.enableSinkingFunds && (
         <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-wali-green bg-wali-green/10 px-2 py-1 rounded border border-wali-green/20 shadow-sm pointer-events-none">
           <CheckCircle2 className="w-3 h-3" /> Funded

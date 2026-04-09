@@ -5,12 +5,12 @@ import { motion } from 'framer-motion'
 import { useEvaluations, useSettings } from '../hooks/useStorage'
 import { formatMoney } from '../lib/utils'
 import { VerdictBadge } from '../components/UI'
-import { ArrowLeft, BrainCircuit, Link as LinkIcon, PiggyBank, Save, Trash2, FileText, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, BrainCircuit, Link as LinkIcon, PiggyBank, Save, Trash2, FileText } from 'lucide-react'
 
 export default function ItemDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { settings, updateSettings } = useSettings() // Added updateSettings
+  const { settings } = useSettings() 
   const { evaluations, updateEvaluation, removeEvaluation } = useEvaluations()
   
   const [entry, setEntry] = useState(null)
@@ -47,15 +47,6 @@ export default function ItemDetailPage() {
     if (window.confirm('Delete this evaluation permanently?')) {
       removeEvaluation(entry.id)
       navigate(returnPath)
-    }
-  }
-
-  // NEW: Mark as Bought logic for the detail page
-  function handleMarkBought() {
-    if (window.confirm(`Mark "${entry.name}" as bought? This will deduct ${formatMoney(entry.price, settings.currency)} from your budget.`)) {
-      updateEvaluation(entry.id, { purchased: true })
-      updateSettings({ spentSoFar: settings.spentSoFar + entry.price })
-      navigate('/history') // Instantly send them to history
     }
   }
 
@@ -131,14 +122,9 @@ export default function ItemDetailPage() {
           </button>
           
           {!isBought && (
-            <>
-              <button onClick={handleSave} className="flex-1 py-3 text-sm flex justify-center items-center gap-2 btn-primary bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-zinc-200">
-                <Save className="w-4 h-4" /> Save Details
-              </button>
-              <button onClick={handleMarkBought} className="flex-1 py-3 text-sm flex justify-center items-center gap-2 btn-primary shadow-lg shadow-wali-green/10">
-                <CheckCircle2 className="w-4 h-4" /> Mark as Bought
-              </button>
-            </>
+            <button onClick={handleSave} className="flex-1 py-3 text-sm flex justify-center items-center gap-2 btn-primary shadow-lg shadow-wali-green/10">
+              <Save className="w-4 h-4" /> Save Details
+            </button>
           )}
         </div>
 
