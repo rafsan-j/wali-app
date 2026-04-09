@@ -35,28 +35,43 @@ export default function EvaluatePage() {
   const price     = parseFloat(form.price) || 0
   const remaining = settings.monthlyLimit - settings.spentSoFar
   const blocked   = price > remaining && remaining > 0
+  
+  // Check if API key is missing
   const missingKey = !settings.geminiApiKey
   
-  // Find the exact active entry in the DB to pass to the ResultCard
   const currentEntry = entryId ? evaluations.find(e => e.id === entryId) : null
 
   const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.name || !form.price || blocked || missingKey) return
+    
+    // REMOVED the missingKey block here!
+    if (!form.name || !form.price || blocked) return
 
     if (price <= 0) return setError('Price must be greater than 0.')
     if (!form.reason || form.reason.trim().length < 10) return setError('Be honest. Please provide a real reason for Wali to analyze.')
+
+    setLoading(true)
+    setError(null)
+
+    // NEW: If no API key, bypass the AI entirely and save as pending
+    if (missingKey) {
+      const entry = addEvaluation({
+        name: form.name, price, category: form.category, necessity: parseInt(form.necessity), reason: form.reason,
+        verdict: 'pending', category_class: form.category, investment_vehicle: 'Pending AI Analysis',
+        projected_5yr: 0, cooling_hours: 0, argument: 'API Key missing. Item added to your list.'
+      })
+      setEntryId(entry.id)
+      setLoading(false)
+      return
+    }
 
     const duplicateImpulse = evaluations.find(prevEval => 
       prevEval.name.toLowerCase().trim() === form.name.toLowerCase().trim() &&
       prevEval.verdict === 'discourage' &&
       (Date.now() - new Date(prevEval.createdAt).getTime()) < (48 * 60 * 60 * 1000)
     )
-
-    setLoading(true)
-    setError(null)
 
     try {
       const res = await evaluateWithWali({
@@ -98,7 +113,7 @@ export default function EvaluatePage() {
   }
 
   return (
-    <motion.div {...pageTransition} className="max-w-5xl mx-auto px-4 md:px-10 lg:px-12 pt-6 md:pt-12 pb-28 md:pb-12 scroll-area flex justify-center w-full">
+    <motion.div {...pageTransition} className="max-w-5xl mx-auto px-4 md:px-10 lg:px-12 pt-6 md:pt-12 pb-28 md:pb-12 scroll-area flex justify-center w-full overflow-x-hidden">
       <AnimatePresence mode="wait">
         {!currentEntry ? (
           <motion.div key="form" className="w-full max-w-xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }}>
@@ -108,17 +123,18 @@ export default function EvaluatePage() {
               <p className="text-zinc-400 text-sm mt-1">Submit your purchase for Islamic financial analysis.</p>
             </div>
 
+            {/* MODIFIED: The warning banner now explains the offline functionality */}
             {missingKey && (
-              <div className="mb-6 card p-5 border-wali-warn/30 bg-wali-warn/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="mb-6 card p-5 border-zinc-700/50 bg-zinc-800/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <Key className="w-5 h-5 text-wali-warn shrink-0 mt-0.5" />
+                  <Key className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-wali-warn">API Key Required</p>
-                    <p className="text-xs text-zinc-400 mt-1">Wali's engine requires a Gemini API key to function.</p>
+                    <p className="text-sm font-medium text-zinc-300">No API Key Configured</p>
+                    <p className="text-xs text-zinc-500 mt-1">You can still save items to your list, but Wali will not analyze them.</p>
                   </div>
                 </div>
-                <Link to="/settings" className="shrink-0 px-4 py-2 bg-wali-warn/20 hover:bg-wali-warn/30 text-wali-warn text-xs font-bold rounded-lg transition-colors">
-                  Go to Settings
+                <Link to="/settings" className="shrink-0 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-lg transition-colors">
+                  Add Key
                 </Link>
               </div>
             )}
@@ -251,12 +267,17 @@ export default function EvaluatePage() {
                 )}
               </AnimatePresence>
 
+              {/* MODIFIED: The button style and text changes dynamically based on the missingKey state */}
               <button 
                 type="submit" 
-                className={`w-full py-4 rounded-xl font-bold tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${loading || blocked || missingKey ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-wali-green text-zinc-950 hover:bg-[#198f69] shadow-wali-green/20'}`}
-                disabled={loading || blocked || missingKey}
+                className={`w-full py-4 rounded-xl font-bold tracking-wide transition-all shadow-lg flex items-center justify-center gap-2 ${
+                  loading || blocked ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 
+                  missingKey ? 'bg-zinc-200 text-zinc-950 hover:bg-white' : 
+                  'bg-wali-green text-zinc-950 hover:bg-[#198f69] shadow-wali-green/20'
+                }`}
+                disabled={loading || blocked}
               >
-                {loading ? 'Consulting...' : 'Submit to Wali'}
+                {loading ? 'Processing...' : missingKey ? 'Save to List (Pending)' : 'Submit to Wali'}
               </button>
             </form>
           </motion.div>

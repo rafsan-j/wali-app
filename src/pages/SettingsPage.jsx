@@ -4,8 +4,9 @@ import { motion } from 'framer-motion'
 import { useSettings } from '../hooks/useStorage'
 import { supabase, getLocalPayload, applyCloudPayload } from '../lib/supabase'
 import { LoadingDots } from '../components/UI'
-import { Save, Key, Wallet, ShieldAlert, Trash2, CheckCircle2, PiggyBank, CloudCog, LogOut, BrainCircuit } from 'lucide-react'
-import { useToast } from '../context/ToastContext' // <-- 1. IMPORT TOAST
+import { Save, Key, Wallet, ShieldAlert, Trash2, CheckCircle2, PiggyBank, CloudCog, LogOut, BrainCircuit, MessageSquare, Sparkles, Heart, Coffee, Smartphone } from 'lucide-react'
+import { useToast } from '../context/ToastContext'
+import FeedbackModal from '../components/FeedbackModal'
 
 const pageTransition = {
   initial: { opacity: 0, y: 15 },
@@ -16,10 +17,13 @@ const pageTransition = {
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings()
-  const { addToast } = useToast() // <-- 2. INITIALIZE TOAST
+  const { addToast } = useToast()
   const [saved, setSaved] = useState(false)
   const [user, setUser] = useState(null)
   
+  // Modal State
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+
   // Auth & Sync States
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
@@ -58,10 +62,7 @@ export default function SettingsPage() {
       resetDay:     parseInt(form.resetDay) || 1,
     })
     setSaved(true)
-    
-    // <-- 3. TRIGGER TOAST NOTIFICATION
     addToast('Settings updated successfully!', 'success')
-    
     setTimeout(() => setSaved(false), 2000)
   }
 
@@ -77,7 +78,7 @@ export default function SettingsPage() {
       }
     } else {
       setSyncMessage('Account created! You are logged in.')
-      addToast('Account created successfully!', 'success') // Bonus toast!
+      addToast('Account created successfully!', 'success')
     }
     setSyncLoading(false)
   }
@@ -88,7 +89,7 @@ export default function SettingsPage() {
     if (error) setSyncMessage(error.message)
     else {
       setSyncMessage('Logged in successfully.')
-      addToast('Logged in successfully!', 'success') // Bonus toast!
+      addToast('Logged in successfully!', 'success')
     }
     setSyncLoading(false)
   }
@@ -132,7 +133,6 @@ export default function SettingsPage() {
       setSyncLoading(false)
     } else {
       applyCloudPayload(data.payload)
-      // Note: applyCloudPayload reloads the window, so a toast here wouldn't be seen anyway!
     }
   }
 
@@ -321,7 +321,6 @@ export default function SettingsPage() {
                 <div className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${form.enableSinkingFunds ? 'bg-wali-green' : 'bg-zinc-800'}`}>
                   <div className={`w-4 h-4 bg-white rounded-full absolute shadow-sm transition-transform ${form.enableSinkingFunds ? 'translate-x-6' : 'translate-x-1'}`} />
                 </div>
-                {/* Note: I'm using an inline onChange here so it captures the boolean toggle correctly rather than an event string */}
                 <input type="checkbox" className="hidden" checked={form.enableSinkingFunds} onChange={(e) => setForm(prev => ({ ...prev, enableSinkingFunds: e.target.checked }))} />
                 <div>
                   <p className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors flex items-center gap-1.5">
@@ -343,8 +342,59 @@ export default function SettingsPage() {
         </div>
       </form>
 
+      {/* --- PREMIUM FEEDBACK BANNER --- */}
+      <div className="mt-16 relative overflow-hidden rounded-2xl border border-wali-green/30 bg-zinc-900/60 shadow-[0_0_30px_-10px_rgba(34,197,94,0.15)] group transition-all hover:border-wali-green/50">
+        <div className="absolute inset-0 bg-gradient-to-br from-wali-green/10 to-transparent opacity-50 pointer-events-none" />
+        
+        <div className="relative p-6 flex flex-col sm:flex-row items-center justify-between gap-5">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <div className="w-12 h-12 rounded-full bg-wali-green/20 border border-wali-green/30 flex items-center justify-center shrink-0 shadow-inner">
+              <Sparkles className="w-5 h-5 text-wali-green" />
+            </div>
+            <div>
+              <h3 className="text-zinc-100 font-bold tracking-wide">Shape the future of Wali</h3>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed max-w-sm">
+                Have an idea? Found a bug? Your feedback directly influences the next update.
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setIsFeedbackOpen(true)}
+            className="shrink-0 w-full sm:w-auto px-6 py-3 rounded-xl bg-wali-green text-zinc-950 font-bold tracking-wide transition-all shadow-lg shadow-wali-green/20 hover:bg-[#198f69] flex items-center justify-center gap-2"
+          >
+            <MessageSquare className="w-4 h-4" /> Send Feedback
+          </button>
+        </div>
+      </div>
+
+      {/* --- SUPPORT THE DEVELOPER --- */}
+      <div className="mt-8 card p-6 border-zinc-800 bg-zinc-900/30 text-center">
+        <div className="w-12 h-12 rounded-full bg-wali-gold/10 border border-wali-gold/20 flex items-center justify-center mx-auto mb-4">
+          <Heart className="w-5 h-5 text-wali-gold" />
+        </div>
+        <h3 className="text-zinc-100 font-bold tracking-wide mb-2">Support Wali's Journey</h3>
+        <p className="text-xs text-zinc-400 mb-6 max-w-sm mx-auto leading-relaxed">
+          Wali is completely ad-free. If this app has helped you conquer your Nafs and save money, consider supporting its development.
+        </p>
+
+        <div className="space-y-3">
+          <a href="https://buymeacoffee.com/YOUR_USERNAME" target="_blank" rel="noopener noreferrer" className="w-full py-3.5 rounded-xl bg-[#FFDD00]/10 border border-[#FFDD00]/30 hover:bg-[#FFDD00]/20 text-[#FFDD00] text-sm font-bold tracking-wide transition-colors flex justify-center items-center gap-3">
+            <Coffee className="w-4 h-4" /> Buy me a Coffee
+          </a>
+          
+          <a href="https://ko-fi.com/YOUR_USERNAME" target="_blank" rel="noopener noreferrer" className="w-full py-3.5 rounded-xl bg-[#FF5E5B]/10 border border-[#FF5E5B]/30 hover:bg-[#FF5E5B]/20 text-[#FF5E5B] text-sm font-bold tracking-wide transition-colors flex justify-center items-center gap-3">
+            <Heart className="w-4 h-4" /> Support on Ko-fi
+          </a>
+          
+          <a href="#" target="_blank" rel="noopener noreferrer" className="w-full py-3.5 rounded-xl bg-wali-green/10 border border-wali-green/30 hover:bg-wali-green/20 text-wali-green text-sm font-bold tracking-wide transition-colors flex justify-center items-center gap-3">
+            <Smartphone className="w-4 h-4" /> Local Support (bKash/Nagad)
+          </a>
+        </div>
+      </div>
+
       {/* --- DANGER ZONE --- */}
-      <div className="mt-16 card p-6 border-red-900/30 bg-red-950/10 flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div className="mt-12 card p-6 border-red-900/30 bg-red-950/10 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div>
           <h3 className="text-red-400 font-medium flex items-center gap-2 mb-1">
             <ShieldAlert className="w-5 h-5" /> Danger Zone
@@ -356,6 +406,7 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </motion.div>
   )
 }

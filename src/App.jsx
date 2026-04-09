@@ -14,7 +14,6 @@ import AuthPage from './pages/AuthPage'
 import ItemDetailPage from './pages/ItemDetailPage'
 import ToBuyPage from './pages/ToBuyPage'
 import VaultPage from './pages/VaultPage'
-import AnalyticsPage from './pages/AnalyticsPage'
 import { ToastProvider } from './context/ToastContext'
 import ToastContainer from './components/ToastContainer'
 
@@ -90,7 +89,6 @@ export default function App() {
                 <Route path="/evaluate" element={<EvaluatePage />} />
                 <Route path="/to-buy" element={<ToBuyPage />} />
                 <Route path="/vault" element={<VaultPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 

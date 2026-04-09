@@ -10,7 +10,6 @@ export default function Sidebar() {
     { to: '/evaluate', icon: Scale, label: 'Wali' },
     { to: '/to-buy', icon: ClipboardList, label: 'To-Buy' },
     { to: '/vault', icon: ShieldCheck, label: 'Vault' },
-    { to: '/analytics', icon: PieChart, label: 'Analytics' }, // NEW
     { to: '/history', icon: History, label: 'History' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ]
